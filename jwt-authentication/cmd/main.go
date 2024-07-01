@@ -1,40 +1,21 @@
 package main
 
 import (
-	"database/sql"
-	"github.com/go-sql-driver/mysql"
-	"github.com/muhammadjon1304/jwt-authentication/cmd/api"
-	"github.com/muhammadjon1304/jwt-authentication/cmd/config"
-	"github.com/muhammadjon1304/jwt-authentication/cmd/db"
-	"log"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	controllers "github.com/muhammadjon1304/jwt-authentication/cmd/controllers"
+	"github.com/muhammadjon1304/jwt-authentication/cmd/initializers"
 )
 
 func main() {
-	db, err := db.NewPostgreSQLStorage(mysql.Config{
-		User:                 config.Envs.DBUser,
-		Passwd:               config.Envs.DBPassword,
-		Addr:                 config.Envs.DBAddress,
-		DBName:               config.Envs.DBName,
-		Net:                  "tcp",
-		AllowNativePasswords: true,
-		ParseTime:            true,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	db := initializers.ConnectDB()
+	router := gin.Default()
+	controller := controllers.NewUserController(db)
+	router.POST("/register", controller.CreateUser)
+	router.POST("/login", controller.LoginUser)
+	router.Run(":8080")
 
-	initStorage(db)
-
-	server := api.NewAPIServer(":8080", db)
-	if err := server.Run(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func initStorage(db *sql.DB) {
-	err := db.Ping()
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Connected succefully")
+	router.Use(cors.New(cors.Config{
+		AllowFiles: true,
+	}))
 }
