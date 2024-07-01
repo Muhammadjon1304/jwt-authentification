@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"database/sql"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	jwt1 "github.com/golang-jwt/jwt/v4"
 	"github.com/muhammadjon1304/jwt-authentication/cmd/models"
 	"github.com/muhammadjon1304/jwt-authentication/cmd/repository"
-	"strconv"
+	"net/http"
 	"time"
 )
 
@@ -14,7 +14,7 @@ type UserController struct {
 	Db *sql.DB
 }
 
-const SecretKey = "Secret"
+const privateKey = "Secret"
 
 func NewUserController(db *sql.DB) *UserController {
 	return &UserController{
@@ -51,28 +51,42 @@ func (u *UserController) LoginUser(c *gin.Context) {
 	repository := repository.NewAuthRepository(Db)
 	getUser := repository.LoginUser(db_user)
 	if (getUser != models.User{}) {
-		claims := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.StandardClaims{
-			Issuer:    strconv.Itoa(getUser.ID),
-			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(),
+		token := jwt1.NewWithClaims(jwt1.SigningMethodHS256, jwt1.MapClaims{
+			"sub": getUser.Email,
+			"exp": time.Now().Add(time.Hour * 24).Unix(),
 		})
-		token, err2 := claims.SignedString([]byte(SecretKey))
-		if err2 != nil {
-			c.JSON(402, gin.H{"status": "failed", "msg": "no token"})
+		tokenString, err := token.SignedString([]byte(privateKey))
+		if err != nil {
+			c.JSON(401, gin.H{"status": "failed", "msg": err})
 			return
 		}
+		c.SetCookie("jwt", tokenString, 3600*24, "/", "localhost", false, true)
+
+		c.Cookie("user")
+
 		c.JSON(200, gin.H{"status": "success", "token": token, "msg": "get user successfully"})
 		return
 	}
+}
 
-	//c.SetCookie("jwt", token, 3600*24, "/", "localhost", false, true)
+func (u *UserController) User(c *gin.Context) {
+	cookie, err := c.Cookie("jwt")
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+	token, err := jwt1.ParseWithClaims(cookie, &jwt1.StandardClaims{}, func(token *jwt1.Token) (interface{}, error) {
+		return []byte(privateKey), nil
+	})
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+	claims := token.Claims.(*jwt1.StandardClaims)
+	Db := u.Db
+	repository := repository.NewAuthRepository(Db)
+	getUser := repository.GetByEmail(claims.Issuer)
+	if (getUser != models.User{}) {
+		c.JSON(200, gin.H{"msg": "success", "data": getUser})
+		return
+	}
 
-	//_, err4 := c.Cookie("user")
-	//if err4 != nil {
-	//	c.String(http.StatusNotFound, "Cookie not found")
-	//	return
-	//}
-
-	//
-	//c.JSON(200, gin.H{"token": token, "msg": "success"})
-	//return
 }

@@ -64,3 +64,30 @@ func (a *AuthRepository) LoginUser(login_user models.Login_User) models.User {
 	}
 	return dbUser
 }
+
+func (a *AuthRepository) GetByEmail(email string) models.User {
+	query, err := a.Db.Query("SELECT * FROM users where email=$1", email)
+	if err != nil {
+		log.Fatal(err)
+		return models.User{}
+	}
+	var dbUser models.User
+	if query != nil {
+		for query.Next() {
+			var (
+				id        int
+				firstname string
+				lastname  string
+				email     string
+				password  string
+				createdat time.Time
+			)
+			err := query.Scan(&id, &firstname, &lastname, &email, &password, &createdat)
+			if err != nil {
+				log.Println(err)
+			}
+			dbUser = models.User{ID: id, Firstname: firstname, Lastname: lastname, Email: email, Password: password, CreatedAt: createdat}
+		}
+	}
+	return dbUser
+}

@@ -18,4 +18,5 @@ func main() {
 	router.Use(cors.New(cors.Config{
 		AllowFiles: true,
 	}))
+
 }
